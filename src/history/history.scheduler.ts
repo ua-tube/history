@@ -80,19 +80,20 @@ export class HistoryScheduler implements OnApplicationBootstrap {
         { 'metrics.nextSyncDate': null },
       );
 
-      const viewCountChanges = videos.map(v => ({
+      const viewCountChanges = videos.map((v) => ({
         id: v._id,
-        viewsCountChange: this.redis.getdel(
-          `history:video_views_${v._id}`,
-        )
-      }))
+        viewsCountChange: this.redis.getdel(`history:video_views_${v._id}`),
+      }));
 
       const promises: Promise<any>[] = [];
       for (const video of videos) {
         promises.push(
-          new Promise(async (resolve) => {
-            const viewsCountChange = BigInt(await viewCountChanges.find(x => x.id === video._id)?.viewsCountChange);
-          
+          new Promise(async (resolve: () => void) => {
+            const viewsCountChange = BigInt(
+              await viewCountChanges.find((x) => x.id === video._id)
+                ?.viewsCountChange,
+            );
+
             if (viewsCountChange && viewsCountChange !== BigInt(0)) {
               video.metrics.viewsCount += viewsCountChange;
               await video.save();
@@ -101,7 +102,7 @@ export class HistoryScheduler implements OnApplicationBootstrap {
             //   { _id: video._id },
             //   { 'metrics.viewsCount': BigInt(value) },
             // );
-            resolve(true);
+            resolve();
           }),
         );
       }
@@ -113,9 +114,10 @@ export class HistoryScheduler implements OnApplicationBootstrap {
           client.emit(
             'update_video_views_metrics',
             new VideoViewsMetricsSyncEvent(
-              video._id, 
-              String(video.metrics.viewsCount), 
-              new Date()),
+              video._id,
+              String(video.metrics.viewsCount),
+              new Date(),
+            ),
           );
         });
       }

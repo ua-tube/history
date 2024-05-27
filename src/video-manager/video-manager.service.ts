@@ -16,8 +16,8 @@ export class VideoManagerService {
   async createVideo(payload: CreateVideoDto) {
     const video = await this.videoModel.findOne({ _id: payload.id });
 
-    if (!video) {
-      this.logger.warn(`Video (${payload.id}) does not exists`);
+    if (video) {
+      this.logger.warn(`[Create] Video (${payload.id}) already created`);
       return;
     }
 
@@ -38,10 +38,10 @@ export class VideoManagerService {
           nextSyncDate: new Date(),
         },
       });
-      this.logger.log(`Video (${payload.id}) is created`);
+      this.logger.log(`[Create] Video (${payload.id}) is created`);
     } catch {
       this.logger.error(
-        `An error occurred when creating video (${payload.id})`,
+        `[Create] An error occurred when creating video (${payload.id})`,
       );
     }
   }
@@ -50,7 +50,7 @@ export class VideoManagerService {
     const video = await this.videoModel.findOne({ _id: payload.id });
 
     if (!video) {
-      this.logger.warn(`Video (${payload.id}) does not exists`);
+      this.logger.warn(`[Update] Video (${payload.id}) does not exists`);
       return;
     }
 
@@ -66,10 +66,10 @@ export class VideoManagerService {
           visibility: payload.visibility,
         },
       );
-      this.logger.log(`Video (${payload.id}) is updated`);
+      this.logger.log(`[Update] Video (${payload.id}) is updated`);
     } catch {
       this.logger.error(
-        `An error occurred when updating video (${payload.id})`,
+        `[Update] An error occurred when updating video (${payload.id})`,
       );
     }
   }
@@ -78,12 +78,16 @@ export class VideoManagerService {
     const video = await this.videoModel.findOne({ _id: payload.videoId });
 
     if (!video) {
-      this.logger.warn(`Video (${payload.videoId}) does not exists`);
+      this.logger.warn(
+        `[Unregister] Video (${payload.videoId}) does not exists`,
+      );
       return;
     }
 
     if (video.status === VideoStatus.Unregistered) {
-      this.logger.warn(`Video (${payload.videoId}) already unregistered`);
+      this.logger.warn(
+        `[Unregister] Video (${payload.videoId}) already unregistered`,
+      );
       return;
     }
 
