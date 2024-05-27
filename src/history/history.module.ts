@@ -8,6 +8,8 @@ import { RedisModule } from '@nestjs-modules/ioredis';
 import { MeiliSearchModule } from 'nestjs-meilisearch';
 import { HistoryScheduler } from './history.scheduler';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ClientsModule, Transport } from '@nestjs/microservices';
+import { microserviceClients } from 'src/common/constants';
 
 @Module({
   imports: [
@@ -30,6 +32,23 @@ import { ScheduleModule } from '@nestjs/schedule';
         apiKey: configService.getOrThrow<string>('MEILISEARCH_MASTERKEY'),
       }),
     }),
+    ClientsModule.registerAsync(
+      microserviceClients.map((item) => ({
+        name: item[0],
+        inject: [ConfigService],
+        useFactory: (configService: ConfigService) => ({
+          transport: Transport.RMQ,
+          options: {
+            urls: [configService.get<string>('RABBITMQ_URL')],
+            queue: configService.get<string>(`RABBITMQ_${item[1]}_QUEUE`),
+            persistent: true,
+            queueOptions: {
+              durable: false,
+            },
+          },
+        }),
+      })),
+    ),
   ],
   controllers: [HistoryController],
   providers: [HistoryService, HistoryScheduler],

@@ -12,7 +12,12 @@ async function bootstrap() {
 
   app.set('trust proxy', true);
 
-  app.enableCors();
+  const configService = app.get(ConfigService);
+  app.enableCors({
+    origin: [configService.getOrThrow<string>('CLIENT_URL')],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    credentials: true,
+  });
   app.enableVersioning({
     type: VersioningType.URI,
     prefix: 'v',
@@ -29,7 +34,6 @@ async function bootstrap() {
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   app.enableShutdownHooks();
 
-  const configService = app.get(ConfigService);
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.RMQ,
     options: {

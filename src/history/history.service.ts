@@ -18,6 +18,7 @@ import Redis from 'ioredis';
 import { InjectMeiliSearch } from 'nestjs-meilisearch';
 import { EnqueuedTask, Index, Meilisearch } from 'meilisearch';
 import { UserHistoryIndex } from './interfaces';
+import moment from 'moment';
 
 @Injectable()
 export class HistoryService implements OnModuleInit {
@@ -51,6 +52,11 @@ export class HistoryService implements OnModuleInit {
     if (!video) throw new BadRequestException('Video not found');
 
     await this.redis.incr(`history:video_views_${dto.videoId}`);
+    
+    if (!video.metrics.nextSyncDate) {
+      video.metrics.nextSyncDate = moment().add(1, 'm').toDate()
+      await video.save();
+    }
 
     if (creatorId) {
       const creator = await this.getCreator(creatorId, false);
@@ -62,14 +68,12 @@ export class HistoryService implements OnModuleInit {
           sort: ['viewAt:desc'],
         });
 
-        const now = new Date();
-
-        const tomorrow = new Date(now);
-        tomorrow.setDate(tomorrow.getDate() + 1);
+        const now = moment();
+        const tomorrow = now.add(1, 'd');
 
         if (
           hits.length > 0 &&
-          Number(now) - Number(hits[0].viewAt) < Number(tomorrow)
+          (now.unix() - moment(hits[0].viewAt).unix()) < tomorrow.unix()
         ) {
           return false;
         }
@@ -81,7 +85,7 @@ export class HistoryService implements OnModuleInit {
             videoId: dto.videoId,
             title: video.title,
             tags: video.tags,
-            viewAt: now,
+            viewAt: now.toDate(),
           },
         ]);
 

@@ -37,6 +37,7 @@
     "ioredis": "^5.4.1",
     "joi": "^17.13.1",
     "meilisearch": "^0.40.0",
+    "moment": "^2.30.1",
     "mongoose": "^8.4.0",
     "nestjs-meilisearch": "^2.1.6",
     "reflect-metadata": "^0.2.0",
