@@ -12,7 +12,7 @@ RUN npm run build
 
 FROM node:20.11.0-slim
 
-RUN apt update && apt install libssl-dev -y --no-install-recommends
+RUN apt update && apt install curl libssl-dev -y --no-install-recommends
 
 WORKDIR /app
 
