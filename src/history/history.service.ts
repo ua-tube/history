@@ -52,9 +52,9 @@ export class HistoryService implements OnModuleInit {
     if (!video) throw new BadRequestException('Video not found');
 
     await this.redis.incr(`history:video_views_${dto.videoId}`);
-    
+
     if (!video.metrics.nextSyncDate) {
-      video.metrics.nextSyncDate = moment().add(1, 'm').toDate()
+      video.metrics.nextSyncDate = moment().add(1, 'm').toDate();
       await video.save();
     }
 
@@ -64,7 +64,7 @@ export class HistoryService implements OnModuleInit {
       if (creator?.recordWatchHistory) {
         const { hits } = await this.index.search(null, {
           limit: 1,
-          filter: [`creatorId=${creatorId}`],
+          filter: [`creatorId=${creatorId}`, `videoId=${dto.videoId}`],
           sort: ['viewAt:desc'],
         });
 
@@ -73,7 +73,7 @@ export class HistoryService implements OnModuleInit {
 
         if (
           hits.length > 0 &&
-          (now.unix() - moment(hits[0].viewAt).unix()) < tomorrow.unix()
+          now.unix() - moment(hits[0].viewAt).unix() < tomorrow.unix()
         ) {
           return false;
         }
@@ -188,7 +188,7 @@ export class HistoryService implements OnModuleInit {
   }
 
   private async handleMeiliTask(enqueuedTask: EnqueuedTask) {
-    const result = await new Promise<boolean>((resolve) => {
+    const success = await new Promise<boolean>((resolve) => {
       const timeout = setInterval(async () => {
         const task = await this.index.getTask(enqueuedTask.taskUid);
         if (task.finishedAt) {
@@ -198,6 +198,6 @@ export class HistoryService implements OnModuleInit {
       }, 500);
     });
 
-    if (!result) throw new InternalServerErrorException();
+    if (!success) throw new InternalServerErrorException();
   }
 }

@@ -5,7 +5,7 @@ import {
   OnApplicationBootstrap,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Promise } from 'mongoose';
+import { Model } from 'mongoose';
 import { Video, VideoDocument } from '../common/schemas';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRedis } from '@nestjs-modules/ioredis';
@@ -19,6 +19,7 @@ import {
 } from '../common/constants';
 import { ClientRMQ } from '@nestjs/microservices';
 import { VideoViewsMetricsSyncEvent } from '../common/events';
+import { isNotEmpty } from 'class-validator';
 
 @Injectable()
 export class HistoryScheduler implements OnApplicationBootstrap {
@@ -54,74 +55,103 @@ export class HistoryScheduler implements OnApplicationBootstrap {
     });
   }
 
-  @Cron(CronExpression.EVERY_MINUTE)
+  @Cron(CronExpression.EVERY_5_SECONDS)
   async executeAsync() {
+    const filter = {
+      'metrics.nextSyncDate': {
+        $ne: null,
+        $lt: Date.now(),
+      },
+    };
+
+    const videosCountToSync = await this.videoModel.countDocuments(filter);
+
+    if (videosCountToSync === 0) return;
+
     const runId = randomUUID();
+    this.logger.log(`[${runId}] Found ${videosCountToSync} videos to sync`);
     this.logger.log(`[${runId}] Running metrics sync...`);
-    const videos = await this.videoModel
-      .find(
-        {
-          'metrics.nextSyncDate': {
-            $ne: null,
-            $lt: Date.now(),
-          },
-        },
-        { _id: 1 },
-      )
-      .limit(250)
-      .exec();
 
-    this.logger.log(`[${runId}] Found ${videos.length} videos to sync`);
-    if (videos.length > 0) {
-      await this.videoModel.updateMany(
-        {
-          _id: { $in: videos.map((x) => x._id) },
-        },
-        { 'metrics.nextSyncDate': null },
-      );
+    const updates = [];
+    const perPage = 250;
 
-      const viewCountChanges = videos.map((v) => ({
-        id: v._id,
-        viewsCountChange: this.redis.getdel(`history:video_views_${v._id}`),
-      }));
+    for (let page = 0; page < videosCountToSync; page += perPage) {
+      const videos = await this.videoModel.find(filter).limit(perPage);
 
-      const promises: Promise<any>[] = [];
-      for (const video of videos) {
-        promises.push(
-          new Promise(async (resolve: () => void) => {
+      if (videos.length === 0) continue;
+
+      updates.push(
+        new Promise(async (resolve, reject) => {
+          try {
+            await this.videoModel.updateMany(
+              {
+                _id: { $in: videos.map((x) => x._id) },
+              },
+              { 'metrics.nextSyncDate': null },
+            );
+          } catch (e) {
+            reject(e);
+          }
+
+          this.logger.log(`[${runId}] Next sync date reset done`);
+
+          const viewCountChanges = videos.map((v) => ({
+            id: v._id,
+            viewsCountChange: this.redis.getdel(`history:video_views_${v._id}`),
+          }));
+
+          const metricsUpdates = [];
+          for (const video of videos) {
             const viewsCountChange = BigInt(
-              await viewCountChanges.find((x) => x.id === video._id)
-                ?.viewsCountChange,
+              (await viewCountChanges.find((x) => x.id === video._id)
+                ?.viewsCountChange) || 0,
             );
 
-            if (viewsCountChange && viewsCountChange !== BigInt(0)) {
-              video.metrics.viewsCount += viewsCountChange;
-              await video.save();
+            if (isNotEmpty(viewsCountChange) && viewsCountChange > BigInt(0)) {
+              metricsUpdates.push(
+                new Promise(async (resolve, reject) => {
+                  try {
+                    video.metrics.viewsCount += viewsCountChange;
+                    await video.save();
+                  } catch (e) {
+                    reject(e);
+                  }
+
+                  this.logger.log(
+                    `[${runId}] Metrics for video (${video._id}) update done`,
+                  );
+
+                  resolve(true);
+                }),
+              );
             }
-            // await this.videoModel.updateOne(
-            //   { _id: video._id },
-            //   { 'metrics.viewsCount': BigInt(value) },
-            // );
-            resolve();
-          }),
-        );
-      }
+          }
 
-      await Promise.all(promises);
+          await Promise.all(metricsUpdates);
 
-      for (const video of videos) {
-        this.clients.forEach(({ client }) => {
-          client.emit(
-            'update_video_views_metrics',
-            new VideoViewsMetricsSyncEvent(
-              video._id,
-              String(video.metrics.viewsCount),
-              new Date(),
-            ),
+          this.logger.log(
+            `[${runId} emitting metrics changes to other services...`,
           );
-        });
-      }
+
+          for (const video of videos) {
+            this.clients.forEach(({ client }) => {
+              client.emit(
+                'update_video_views_metrics',
+                new VideoViewsMetricsSyncEvent(
+                  video._id,
+                  video.metrics.viewsCount.toString(),
+                  new Date(),
+                ),
+              );
+            });
+          }
+
+          resolve(true);
+        }),
+      );
     }
+
+    await Promise.all(updates);
 
     this.logger.log(`[${runId}] Metrics sync finished`);
   }

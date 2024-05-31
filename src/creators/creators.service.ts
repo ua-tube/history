@@ -41,6 +41,7 @@ export class CreatorsService {
           displayName: payload.displayName,
           nickname: payload.nickname,
           thumbnailUrl: payload.thumbnailUrl,
+          recordWatchHistory: true,
         });
         this.logger.log(`Creator (${payload.id}) is created`);
       } catch {

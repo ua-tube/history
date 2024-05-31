@@ -17,15 +17,15 @@ export class AuthUserGuard implements CanActivate {
 
     const authorizationHeader = req.headers['authorization'] || '';
     if (isEmpty(authorizationHeader)) {
-      throw new UnauthorizedException();
+      throw new UnauthorizedException({ code: 0 });
     }
 
     const split = authorizationHeader.split(' ');
     if (split.length < 2) {
-      throw new UnauthorizedException();
+      throw new UnauthorizedException({ code: 1 });
     }
 
-    if (isEmpty(split[1])) throw new UnauthorizedException();
+    if (isEmpty(split[1])) throw new UnauthorizedException({ code: 2 });
 
     try {
       const { data } = await axios.get(
@@ -41,7 +41,7 @@ export class AuthUserGuard implements CanActivate {
 
       return true;
     } catch {
-      throw new UnauthorizedException();
+      throw new UnauthorizedException({ code: 3 });
     }
   }
 }
