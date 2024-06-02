@@ -19,6 +19,7 @@ import { InjectMeiliSearch } from 'nestjs-meilisearch';
 import { EnqueuedTask, Index, Meilisearch } from 'meilisearch';
 import { UserHistoryIndex } from './interfaces';
 import moment from 'moment';
+import { isNotEmpty } from 'class-validator';
 
 @Injectable()
 export class HistoryService implements OnModuleInit {
@@ -126,16 +127,21 @@ export class HistoryService implements OnModuleInit {
         .lean(),
     ]);
 
-    videos.map((v) => ({
-      ...v,
-      creator: creators.find((creator) => creator._id === v.creatorId),
-      metrics: {
-        viewsCount: v.metrics.viewsCount.toString(),
-      },
-    }));
-
     return {
-      hits: videos,
+      hits: hits
+        .map((hit) => {
+          const video = videos.find((v) => v._id === hit.videoId);
+          if (!video) return;
+          return {
+            ...hit,
+            video: {
+              ...video,
+              metrics: { viewsCount: video.metrics.viewsCount.toString() },
+            },
+            creator: creators.find((c) => c._id === hit.creatorId),
+          };
+        })
+        .filter((h) => isNotEmpty(h)),
       page,
       hitsPerPage,
       totalPages,
