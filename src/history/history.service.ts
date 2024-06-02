@@ -130,7 +130,12 @@ export class HistoryService implements OnModuleInit {
       .exec();
 
     return {
-      hits: videos,
+      hits: videos.map((v) => ({
+        ...v,
+        metrics: {
+          viewsCount: v.metrics.viewsCount.toString(),
+        },
+      })),
       page,
       hitsPerPage,
       totalPages,
