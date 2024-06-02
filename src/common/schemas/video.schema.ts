@@ -26,8 +26,8 @@ export class Video {
   @Prop(String)
   _id: string;
 
-  @Prop({ type: String, ref: 'Creator' })
-  creator: Creator;
+  @Prop(String)
+  creatorId: string;
 
   @Prop(String)
   title: string;

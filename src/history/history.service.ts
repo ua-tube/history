@@ -115,27 +115,27 @@ export class HistoryService implements OnModuleInit {
       sort: ['viewAt:desc'],
     });
 
-    // const [videos, creators] = await Promise.all([
-    //   this.videoModel.find({ _id: { $in: hits.map((hit) => hit.videoId) } }),
-    //   this.creatorModel.find({
-    //     _id: { $in: hits.map((hit) => hit.creatorId) },
-    //   }),
-    // ]);
+    const [videos, creators] = await Promise.all([
+      this.videoModel
+        .find({ _id: { $in: hits.map((hit) => hit.videoId) } })
+        .lean(),
+      this.creatorModel
+        .find({
+          _id: { $in: hits.map((hit) => hit.creatorId) },
+        })
+        .lean(),
+    ]);
 
-    const videos = await this.videoModel
-      .find({
-        _id: { $in: hits.map((hit) => hit.videoId) },
-      })
-      .populate('creator')
-      .exec();
+    videos.map((v) => ({
+      ...v,
+      creator: creators.find((creator) => creator._id === v.creatorId),
+      metrics: {
+        viewsCount: v.metrics.viewsCount.toString(),
+      },
+    }));
 
     return {
-      hits: videos.map((v) => ({
-        ...v,
-        metrics: {
-          viewsCount: v.metrics.viewsCount.toString(),
-        },
-      })),
+      hits: videos,
       page,
       hitsPerPage,
       totalPages,
