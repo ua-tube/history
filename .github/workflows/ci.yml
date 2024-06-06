@@ -22,7 +22,7 @@ jobs:
           node-version: 20.11.0
 
       - name: Install service dependencies
-        run: npm i
+        run: npm i --legacy-peer-deps
 
       - name: Build service
         run: npm run build
